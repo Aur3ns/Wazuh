@@ -1,19 +1,18 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------------------
-# Script : configure_wazuh_discord.sh
-# Description : Configure automatiquement le serveur Wazuh pour utiliser Discord pour
-#               relayer les alertes via active response.
-#               Le script sauvegarde l'ancien ossec.conf, déploie une nouvelle configuration,
-#               ajuste les permissions, met à jour la commande active response et crée le
-#               script discord_alert.sh, puis redémarre le service Wazuh Manager.
+# Script : configure_wazuh_prev_discord.sh
+# Description : Désinstalle la version actuelle de Wazuh Manager, installe la version
+#               précédente définie, et configure le serveur Wazuh pour relayer les alertes
+#               vers Discord via active response.
 #
 # Auteur : ChatGPT
-# Version : 1.1
+# Version : 1.0
 # ----------------------------------------------------------------------------------------
 
 set -e
 
 # Variables de configuration
+PREVIOUS_VERSION="4.7.0-1"   # Modifier ici la version précédente souhaitée
 OSSEC_CONF="/var/ossec/etc/ossec.conf"
 BACKUP_CONF="/var/ossec/etc/ossec.conf.bak_$(date '+%Y%m%d_%H%M%S')"
 COMMANDS_CONF="/var/ossec/etc/active-response/commands.conf"
@@ -22,7 +21,26 @@ ALERT_SCRIPT="${ALERT_SCRIPT_DIR}/discord_alert.sh"
 WEBHOOK_URL="https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
 MINIMAL_CONF="/tmp/minimal_ossec.conf"
 
-echo "=== Début de la configuration automatique de Wazuh pour Discord ==="
+echo "=== Désinstallation de Wazuh Manager (si installé) ==="
+if dpkg -l | grep -q wazuh-manager; then
+    echo "Wazuh Manager détecté. Désinstallation en cours..."
+    apt-get purge -y wazuh-manager
+    apt-get autoremove -y
+else
+    echo "Aucune version de Wazuh Manager n'est installée."
+fi
+
+echo "=== Ajout de la clé GPG et du dépôt Wazuh ==="
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | apt-key add -
+echo "deb https://packages.wazuh.com/4.x/apt/ stable main" > /etc/apt/sources.list.d/wazuh.list
+
+echo "=== Mise à jour des dépôts ==="
+apt-get update
+
+echo "=== Installation de Wazuh Manager version $PREVIOUS_VERSION ==="
+apt-get install -y wazuh-manager=$PREVIOUS_VERSION
+
+echo "=== Configuration de Wazuh pour Discord ==="
 
 # 1. Sauvegarde de l'ancien ossec.conf s'il existe
 if [ -f "$OSSEC_CONF" ]; then
