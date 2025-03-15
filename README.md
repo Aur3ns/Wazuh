@@ -1,0 +1,2 @@
+# Wazuh
+script SIEM
