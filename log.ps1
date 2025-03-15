@@ -3,8 +3,6 @@
 # Description  : Installe Sysmon (avec configuration maximisant la collecte d'événements),
 #                installe l'agent Wazuh et configure ce dernier pour transmettre les logs
 #                (canaux Sysmon, Application, System et Security) vers le serveur spécifié.
-# Auteur       : ChatGPT
-# Version      : 1.5
 # ----------------------------------------------------------------------------------------
 
 [CmdletBinding()]
