@@ -1,9 +1,9 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------------------
-# Script : configure_wazuh_prev_discord.sh
-# Description : Désinstalle la version actuelle de Wazuh Manager, installe la version
-#               précédente définie, et configure le serveur Wazuh pour relayer les alertes
-#               vers Discord via active response.
+# Script : install_and_configure_wazuh_discord.sh
+# Description : Installe et configure la stack Wazuh (Indexer, Manager, Dashboard, Filebeat)
+#               sur Debian/Ubuntu et configure le serveur Wazuh pour relayer les alertes vers
+#               Discord via active response.
 #
 # Auteur : ChatGPT
 # Version : 1.0
@@ -12,57 +12,59 @@
 set -e
 
 # Variables de configuration
-PREVIOUS_VERSION="4.7.0-1"   # Modifier ici la version précédente souhaitée
+WEBHOOK_URL="https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
 OSSEC_CONF="/var/ossec/etc/ossec.conf"
-BACKUP_CONF="/var/ossec/etc/ossec.conf.bak_$(date '+%Y%m%d_%H%M%S')"
 COMMANDS_CONF="/var/ossec/etc/active-response/commands.conf"
 ALERT_SCRIPT_DIR="/var/ossec/active-response"
 ALERT_SCRIPT="${ALERT_SCRIPT_DIR}/discord_alert.sh"
-WEBHOOK_URL="https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
-MINIMAL_CONF="/tmp/minimal_ossec.conf"
 
-echo "=== Désinstallation de Wazuh Manager (si installé) ==="
-if dpkg -l | grep -q wazuh-manager; then
-    echo "Wazuh Manager détecté. Désinstallation en cours..."
-    apt-get purge -y wazuh-manager
-    apt-get autoremove -y
-else
-    echo "Aucune version de Wazuh Manager n'est installée."
-fi
+echo "=== Mise à jour du système et installation des dépendances ==="
+apt update && apt upgrade -y
+apt install -y gnupg apt-transport-https curl debconf adduser procps filebeat libxml2-utils dos2unix
 
-echo "=== Ajout de la clé GPG et du dépôt Wazuh ==="
-curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | apt-key add -
-echo "deb https://packages.wazuh.com/4.x/apt/ stable main" > /etc/apt/sources.list.d/wazuh.list
+echo "=== Import de la clé GPG de Wazuh et ajout du dépôt ==="
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring /usr/share/keyrings/wazuh.gpg --import
+chmod 644 /usr/share/keyrings/wazuh.gpg
+echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" > /etc/apt/sources.list.d/wazuh.list
 
 echo "=== Mise à jour des dépôts ==="
-apt-get update
+apt update
 
-echo "=== Installation de Wazuh Manager version $PREVIOUS_VERSION ==="
-apt-get install -y wazuh-manager=$PREVIOUS_VERSION
+echo "=== Installation de la stack Wazuh ==="
+apt install -y wazuh-indexer wazuh-manager wazuh-dashboard filebeat
 
-echo "=== Configuration de Wazuh pour Discord ==="
+# (Optionnel) Téléchargement de la configuration Filebeat pour Wazuh
+echo "=== Téléchargement de la configuration Filebeat pour Wazuh ==="
+curl -so /etc/filebeat/filebeat.yml https://packages.wazuh.com/4.11/tpl/wazuh/filebeat/filebeat.yml
+# Vous pouvez adapter le paramètre hosts dans /etc/filebeat/filebeat.yml si nécessaire
 
-# 1. Sauvegarde de l'ancien ossec.conf s'il existe
+# (Optionnel) Installation du module Wazuh pour Filebeat
+echo "=== Installation du module Wazuh pour Filebeat ==="
+curl -s https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.4.tar.gz | tar -xvz -C /usr/share/filebeat/module
+
+# --------------------------------------------------------------------------
+# Partie Configuration de Wazuh Manager pour Discord
+# --------------------------------------------------------------------------
+
+echo "=== Déploiement de la configuration Wazuh pour Discord ==="
+# Sauvegarde de l'ancien ossec.conf
 if [ -f "$OSSEC_CONF" ]; then
-    echo "Sauvegarde de l'ancien fichier ossec.conf dans $BACKUP_CONF..."
-    cp "$OSSEC_CONF" "$BACKUP_CONF"
-else
-    echo "Aucun ossec.conf existant trouvé, création d'un nouveau fichier..."
+    cp "$OSSEC_CONF" "${OSSEC_CONF}.bak_$(date '+%Y%m%d_%H%M%S')"
+    echo "Ancien ossec.conf sauvegardé."
 fi
 
-# 2. Déploiement de la nouvelle configuration ossec.conf
-echo "Déploiement de la nouvelle configuration dans $OSSEC_CONF..."
+# Déploiement d'un nouveau ossec.conf minimal avec active response vers Discord
 cat << 'EOF' > "$OSSEC_CONF"
 <?xml version="1.0" encoding="UTF-8"?>
 <ossec_config>
-  <!-- Configuration globale -->
+  <!-- Configuration globale minimale -->
   <global>
     <email_notification>no</email_notification>
     <logall>yes</logall>
     <log_level>1</log_level>
   </global>
 
-  <!-- Configuration de la réception des agents -->
+  <!-- Réception des agents -->
   <remote>
     <connection>
       <port>1514</port>
@@ -70,13 +72,13 @@ cat << 'EOF' > "$OSSEC_CONF"
     </connection>
   </remote>
 
-  <!-- Surveillance des logs locaux du manager -->
+  <!-- Journalisation locale du manager -->
   <localfile>
     <log_format>syslog</log_format>
     <location>/var/ossec/logs/ossec.log</location>
   </localfile>
 
-  <!-- Active response pour relayer les alertes vers Discord -->
+  <!-- Active response vers Discord -->
   <active-response>
     <command>discord_alert</command>
     <location>local</location>
@@ -103,70 +105,35 @@ cat << 'EOF' > "$OSSEC_CONF"
 EOF
 echo "Nouveau ossec.conf déployé."
 
-# 3. Vérification et correction de ossec.conf
-
-# Vérifier qu'il n'est pas vide
-if [ ! -s "$OSSEC_CONF" ]; then
-    echo "ERREUR : Le fichier ossec.conf est vide."
-    exit 1
-fi
-
-# Retirer un éventuel BOM de la première ligne
+# Correction d'éventuels problèmes d'encodage
 sed -i '1s/^\xEF\xBB\xBF//' "$OSSEC_CONF"
-
-# Vérifier la validité XML avec xmllint
 if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
     echo "ERREUR : Le fichier ossec.conf n'est pas un XML valide. Tentative de correction avec dos2unix..."
-    if command -v dos2unix >/dev/null 2>&1; then
-        dos2unix "$OSSEC_CONF"
-        # Re-vérifier après correction
-        if xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
-            echo "Correction réussie, le fichier ossec.conf est désormais valide."
-        else
-            echo "ERREUR : Le fichier ossec.conf reste invalide après dos2unix."
-            echo "Déploiement d'un fichier de configuration minimal..."
-            cp "$OSSEC_CONF" "$BACKUP_CONF"
-            cat << 'EOF' > "$OSSEC_CONF"
-<?xml version="1.0" encoding="UTF-8"?>
-<ossec_config>
-  <global>
-    <email_notification>no</email_notification>
-  </global>
-  <remote>
-    <connection>
-      <port>1514</port>
-      <protocol>tcp</protocol>
-    </connection>
-  </remote>
-</ossec_config>
-EOF
-            echo "Fichier minimal déployé dans $OSSEC_CONF."
-        fi
-    else
-        echo "dos2unix n'est pas installé. Veuillez l'installer ou corriger manuellement le fichier ossec.conf."
+    dos2unix "$OSSEC_CONF"
+    if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
+        echo "ERREUR : Le fichier ossec.conf reste invalide. Veuillez le corriger manuellement."
         exit 1
+    else
+        echo "Fichier ossec.conf corrigé."
     fi
 else
     echo "Le fichier ossec.conf est valide."
 fi
 
-# 4. Ajustement des permissions sur /var/ossec/etc et ossec.conf
+# Ajustement des permissions pour que le service Wazuh puisse lire la configuration
 echo "Ajustement des permissions sur /var/ossec/etc et ossec.conf..."
 chown -R wazuh:wazuh /var/ossec/etc
 chmod 770 /var/ossec/etc
-chmod 660 /var/ossec/etc/ossec.conf
+chmod 660 "$OSSEC_CONF"
 echo "Permissions mises à jour."
 
-# 5. Mise à jour de la commande active response dans commands.conf
+# Mise à jour de la commande active response dans commands.conf
 echo "Mise à jour de la commande active response dans $COMMANDS_CONF..."
 if [ ! -f "$COMMANDS_CONF" ]; then
     mkdir -p "$(dirname "$COMMANDS_CONF")"
     touch "$COMMANDS_CONF"
 fi
-
-# Suppression des éventuelles anciennes définitions de discord_alert pour éviter les doublons
 sed -i '/<name>discord_alert<\/name>/,+3d' "$COMMANDS_CONF"
-
 cat << 'EOF' >> "$COMMANDS_CONF"
 <command>
   <name>discord_alert</name>
@@ -176,7 +143,7 @@ cat << 'EOF' >> "$COMMANDS_CONF"
 EOF
 echo "Commande discord_alert ajoutée dans $COMMANDS_CONF."
 
-# 6. Création du script discord_alert.sh
+# Création du script discord_alert.sh
 echo "Création du script $ALERT_SCRIPT..."
 mkdir -p "$ALERT_SCRIPT_DIR"
 cat << EOF > "$ALERT_SCRIPT"
@@ -189,13 +156,19 @@ EOF
 chmod +x "$ALERT_SCRIPT"
 echo "Script discord_alert.sh créé et rendu exécutable."
 
-# 7. Redémarrage du service wazuh-manager pour appliquer la configuration
-echo "Redémarrage du service wazuh-manager..."
-if systemctl restart wazuh-manager; then
-    echo "Le service wazuh-manager a été redémarré avec succès."
-else
-    echo "ERREUR : Le service wazuh-manager n'a pas pu être redémarré. Vérifiez les logs."
-    exit 1
-fi
+# --------------------------------------------------------------------------
+# Redémarrage des services Wazuh
+# --------------------------------------------------------------------------
+echo "Redémarrage du service wazuh-indexer..."
+systemctl restart wazuh-indexer || echo "Impossible de redémarrer wazuh-indexer (peut ne pas être utilisé sur ce serveur)."
 
-echo "=== Configuration et installation de Wazuh pour Discord terminées avec succès ! ==="
+echo "Redémarrage du service wazuh-manager..."
+systemctl restart wazuh-manager
+
+echo "Redémarrage du service wazuh-dashboard..."
+systemctl restart wazuh-dashboard
+
+echo "Redémarrage du service filebeat..."
+systemctl restart filebeat
+
+echo "=== Installation et configuration de Wazuh avec Discord terminées avec succès ! ==="
