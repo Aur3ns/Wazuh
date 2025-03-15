@@ -5,9 +5,6 @@
 #               relayer les alertes via active response.
 #               Ce script sauvegarde l'ancien ossec.conf, déploie une nouvelle configuration,
 #               met à jour la commande active response et crée le script discord_alert.sh.
-#
-# Auteur : ChatGPT
-# Version : 1.0
 # ----------------------------------------------------------------------------------------
 
 set -e
