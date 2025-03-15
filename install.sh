@@ -3,8 +3,12 @@
 # Script : configure_wazuh_discord.sh
 # Description : Configure automatiquement le serveur Wazuh pour utiliser Discord pour
 #               relayer les alertes via active response.
-#               Ce script sauvegarde l'ancien ossec.conf, déploie une nouvelle configuration,
-#               met à jour la commande active response et crée le script discord_alert.sh.
+#               Le script sauvegarde l'ancien ossec.conf, déploie une nouvelle configuration,
+#               ajuste les permissions, met à jour la commande active response et crée le
+#               script discord_alert.sh, puis redémarre le service Wazuh Manager.
+#
+# Auteur : ChatGPT
+# Version : 1.1
 # ----------------------------------------------------------------------------------------
 
 set -e
@@ -16,10 +20,11 @@ COMMANDS_CONF="/var/ossec/etc/active-response/commands.conf"
 ALERT_SCRIPT_DIR="/var/ossec/active-response"
 ALERT_SCRIPT="${ALERT_SCRIPT_DIR}/discord_alert.sh"
 WEBHOOK_URL="https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
+MINIMAL_CONF="/tmp/minimal_ossec.conf"
 
-echo "=== Configuration de Wazuh pour Discord ==="
+echo "=== Début de la configuration automatique de Wazuh pour Discord ==="
 
-# 1. Sauvegarder l'ancien ossec.conf s'il existe
+# 1. Sauvegarde de l'ancien ossec.conf s'il existe
 if [ -f "$OSSEC_CONF" ]; then
     echo "Sauvegarde de l'ancien fichier ossec.conf dans $BACKUP_CONF..."
     cp "$OSSEC_CONF" "$BACKUP_CONF"
@@ -27,7 +32,7 @@ else
     echo "Aucun ossec.conf existant trouvé, création d'un nouveau fichier..."
 fi
 
-# 2. Déployer la nouvelle configuration ossec.conf
+# 2. Déploiement de la nouvelle configuration ossec.conf
 echo "Déploiement de la nouvelle configuration dans $OSSEC_CONF..."
 cat << 'EOF' > "$OSSEC_CONF"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -80,12 +85,67 @@ cat << 'EOF' > "$OSSEC_CONF"
 EOF
 echo "Nouveau ossec.conf déployé."
 
-# 3. Mettre à jour la commande active response dans commands.conf
+# 3. Vérification et correction de ossec.conf
+
+# Vérifier qu'il n'est pas vide
+if [ ! -s "$OSSEC_CONF" ]; then
+    echo "ERREUR : Le fichier ossec.conf est vide."
+    exit 1
+fi
+
+# Retirer un éventuel BOM de la première ligne
+sed -i '1s/^\xEF\xBB\xBF//' "$OSSEC_CONF"
+
+# Vérifier la validité XML avec xmllint
+if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
+    echo "ERREUR : Le fichier ossec.conf n'est pas un XML valide. Tentative de correction avec dos2unix..."
+    if command -v dos2unix >/dev/null 2>&1; then
+        dos2unix "$OSSEC_CONF"
+        # Re-vérifier après correction
+        if xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
+            echo "Correction réussie, le fichier ossec.conf est désormais valide."
+        else
+            echo "ERREUR : Le fichier ossec.conf reste invalide après dos2unix."
+            echo "Déploiement d'un fichier de configuration minimal..."
+            cp "$OSSEC_CONF" "$BACKUP_CONF"
+            cat << 'EOF' > "$OSSEC_CONF"
+<?xml version="1.0" encoding="UTF-8"?>
+<ossec_config>
+  <global>
+    <email_notification>no</email_notification>
+  </global>
+  <remote>
+    <connection>
+      <port>1514</port>
+      <protocol>tcp</protocol>
+    </connection>
+  </remote>
+</ossec_config>
+EOF
+            echo "Fichier minimal déployé dans $OSSEC_CONF."
+        fi
+    else
+        echo "dos2unix n'est pas installé. Veuillez l'installer ou corriger manuellement le fichier ossec.conf."
+        exit 1
+    fi
+else
+    echo "Le fichier ossec.conf est valide."
+fi
+
+# 4. Ajustement des permissions sur /var/ossec/etc et ossec.conf
+echo "Ajustement des permissions sur /var/ossec/etc et ossec.conf..."
+chown -R wazuh:wazuh /var/ossec/etc
+chmod 770 /var/ossec/etc
+chmod 660 /var/ossec/etc/ossec.conf
+echo "Permissions mises à jour."
+
+# 5. Mise à jour de la commande active response dans commands.conf
 echo "Mise à jour de la commande active response dans $COMMANDS_CONF..."
 if [ ! -f "$COMMANDS_CONF" ]; then
     mkdir -p "$(dirname "$COMMANDS_CONF")"
     touch "$COMMANDS_CONF"
 fi
+
 # Suppression des éventuelles anciennes définitions de discord_alert pour éviter les doublons
 sed -i '/<name>discord_alert<\/name>/,+3d' "$COMMANDS_CONF"
 
@@ -98,7 +158,7 @@ cat << 'EOF' >> "$COMMANDS_CONF"
 EOF
 echo "Commande discord_alert ajoutée dans $COMMANDS_CONF."
 
-# 4. Créer le script discord_alert.sh
+# 6. Création du script discord_alert.sh
 echo "Création du script $ALERT_SCRIPT..."
 mkdir -p "$ALERT_SCRIPT_DIR"
 cat << EOF > "$ALERT_SCRIPT"
@@ -111,7 +171,13 @@ EOF
 chmod +x "$ALERT_SCRIPT"
 echo "Script discord_alert.sh créé et rendu exécutable."
 
-# 5. Redémarrer le service wazuh-manager pour appliquer la configuration
+# 7. Redémarrage du service wazuh-manager pour appliquer la configuration
 echo "Redémarrage du service wazuh-manager..."
-systemctl restart wazuh-manager
-echo "=== Configuration de Wazuh pour Discord terminée avec succès ! ==="
+if systemctl restart wazuh-manager; then
+    echo "Le service wazuh-manager a été redémarré avec succès."
+else
+    echo "ERREUR : Le service wazuh-manager n'a pas pu être redémarré. Vérifiez les logs."
+    exit 1
+fi
+
+echo "=== Configuration et installation de Wazuh pour Discord terminées avec succès ! ==="
