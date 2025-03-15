@@ -1,9 +1,9 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------------------
 # Script : install_and_configure_wazuh_discord.sh
-# Description : Installe et configure la stack Wazuh (Indexer, Manager, Dashboard, Filebeat)
-#               sur Debian/Ubuntu et configure le serveur Wazuh pour relayer les alertes vers
-#               Discord via active response.
+# Description : Installe la stack Wazuh (Indexer, Manager, Dashboard, Filebeat) sur
+#               Debian/Ubuntu et configure le serveur Wazuh pour relayer les alertes
+#               vers Discord via active response.
 #
 # Auteur : ChatGPT
 # Version : 1.0
@@ -20,34 +20,35 @@ ALERT_SCRIPT="${ALERT_SCRIPT_DIR}/discord_alert.sh"
 
 echo "=== Mise à jour du système et installation des dépendances ==="
 apt update && apt upgrade -y
-apt install -y gnupg apt-transport-https curl debconf adduser procps filebeat libxml2-utils dos2unix
+apt install -y gnupg apt-transport-https curl debconf adduser procps libxml2-utils dos2unix
 
 echo "=== Import de la clé GPG de Wazuh et ajout du dépôt ==="
 curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring /usr/share/keyrings/wazuh.gpg --import
 chmod 644 /usr/share/keyrings/wazuh.gpg
 echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" > /etc/apt/sources.list.d/wazuh.list
 
+echo "=== Ajout du dépôt Elastic pour Filebeat ==="
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | apt-key add -
+echo "deb https://artifacts.elastic.co/packages/8.x/apt stable main" > /etc/apt/sources.list.d/elastic-8.x.list
+
 echo "=== Mise à jour des dépôts ==="
 apt update
 
-echo "=== Installation de la stack Wazuh ==="
+echo "=== Installation de la stack Wazuh et Filebeat ==="
 apt install -y wazuh-indexer wazuh-manager wazuh-dashboard filebeat
 
-# (Optionnel) Téléchargement de la configuration Filebeat pour Wazuh
 echo "=== Téléchargement de la configuration Filebeat pour Wazuh ==="
 curl -so /etc/filebeat/filebeat.yml https://packages.wazuh.com/4.11/tpl/wazuh/filebeat/filebeat.yml
-# Vous pouvez adapter le paramètre hosts dans /etc/filebeat/filebeat.yml si nécessaire
 
-# (Optionnel) Installation du module Wazuh pour Filebeat
 echo "=== Installation du module Wazuh pour Filebeat ==="
 curl -s https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.4.tar.gz | tar -xvz -C /usr/share/filebeat/module
 
 # --------------------------------------------------------------------------
 # Partie Configuration de Wazuh Manager pour Discord
 # --------------------------------------------------------------------------
-
 echo "=== Déploiement de la configuration Wazuh pour Discord ==="
-# Sauvegarde de l'ancien ossec.conf
+
+# Sauvegarde de l'ancien ossec.conf (s'il existe)
 if [ -f "$OSSEC_CONF" ]; then
     cp "$OSSEC_CONF" "${OSSEC_CONF}.bak_$(date '+%Y%m%d_%H%M%S')"
     echo "Ancien ossec.conf sauvegardé."
@@ -105,7 +106,7 @@ cat << 'EOF' > "$OSSEC_CONF"
 EOF
 echo "Nouveau ossec.conf déployé."
 
-# Correction d'éventuels problèmes d'encodage
+# Correction d'éventuels problèmes d'encodage : suppression d'un BOM si présent
 sed -i '1s/^\xEF\xBB\xBF//' "$OSSEC_CONF"
 if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
     echo "ERREUR : Le fichier ossec.conf n'est pas un XML valide. Tentative de correction avec dos2unix..."
@@ -141,7 +142,7 @@ cat << 'EOF' >> "$COMMANDS_CONF"
   <timeout_allowed>yes</timeout_allowed>
 </command>
 EOF
-echo "Commande discord_alert ajoutée dans $COMMANDS_CONF."
+echo "Commande discord_alert mise à jour dans $COMMANDS_CONF."
 
 # Création du script discord_alert.sh
 echo "Création du script $ALERT_SCRIPT..."
@@ -160,7 +161,7 @@ echo "Script discord_alert.sh créé et rendu exécutable."
 # Redémarrage des services Wazuh
 # --------------------------------------------------------------------------
 echo "Redémarrage du service wazuh-indexer..."
-systemctl restart wazuh-indexer || echo "Impossible de redémarrer wazuh-indexer (peut ne pas être utilisé sur ce serveur)."
+systemctl restart wazuh-indexer || echo "Redémarrage de wazuh-indexer non nécessaire sur ce serveur."
 
 echo "Redémarrage du service wazuh-manager..."
 systemctl restart wazuh-manager
