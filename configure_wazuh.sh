@@ -1,10 +1,13 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------------------
 # Script : configure_wazuh_discord.sh
-# Description : Installation et configuration du serveur Wazuh pour désactiver les
-#               notifications par e-mail et relayer les alertes vers Discord via active response.
-#               Le script vérifie que le fichier ossec.conf est valide (pas vide, sans BOM,
-#               syntaxe XML correcte) et restaure un fichier minimal en cas d'erreur.
+# Description : Installation et configuration automatique du serveur Wazuh pour
+#               relayer les alertes vers Discord via active response.
+#               Le script déploie un nouveau ossec.conf, vérifie qu'il est valide XML,
+#               et en cas d'erreur, tente de corriger le fichier avec dos2unix.
+#
+# Auteur : ChatGPT
+# Version : 1.1
 # ----------------------------------------------------------------------------------------
 
 set -e
@@ -89,13 +92,22 @@ if [ ! -s "$OSSEC_CONF" ]; then
     exit 1
 fi
 
-# Retirer un éventuel BOM (Byte Order Mark) de la première ligne
+# Retirer un éventuel BOM de la première ligne
 sed -i '1s/^\xEF\xBB\xBF//' "$OSSEC_CONF"
 
 # Vérifier la validité XML avec xmllint
 if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
-    echo "ERREUR : Le fichier ossec.conf n'est pas un XML valide. Restauration d'une configuration minimale..."
-    cat << 'EOF' > "$MINIMAL_CONF"
+    echo "ERREUR : Le fichier ossec.conf n'est pas un XML valide. Tentative de correction avec dos2unix..."
+    if command -v dos2unix >/dev/null 2>&1; then
+        dos2unix "$OSSEC_CONF"
+        # Re-vérifier après correction
+        if xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
+            echo "Correction réussie, le fichier ossec.conf est désormais valide."
+        else
+            echo "ERREUR : Le fichier ossec.conf reste invalide après dos2unix."
+            echo "Déploiement d'un fichier de configuration minimal..."
+            cp "$OSSEC_CONF" "$BACKUP_CONF"
+            cat << 'EOF' > "$OSSEC_CONF"
 <?xml version="1.0" encoding="UTF-8"?>
 <ossec_config>
   <global>
@@ -109,8 +121,12 @@ if ! xmllint --noout "$OSSEC_CONF" 2>/dev/null; then
   </remote>
 </ossec_config>
 EOF
-    cp "$MINIMAL_CONF" "$OSSEC_CONF"
-    echo "Configuration minimale restaurée dans $OSSEC_CONF."
+            echo "Fichier minimal déployé dans $OSSEC_CONF."
+        fi
+    else
+        echo "dos2unix n'est pas installé. Veuillez l'installer ou corriger manuellement le fichier ossec.conf."
+        exit 1
+    fi
 else
     echo "Le fichier ossec.conf est valide."
 fi
