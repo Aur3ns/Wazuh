@@ -1,227 +1,255 @@
-# =============================================
-# Déploiement de Wazuh Agent, installation de Sysmon,
-# et configuration de l'agent pour envoyer les logs
-# de Sysmon et de l'Observateur d'événements vers le serveur Wazuh.
-# =============================================
+# ----------------------------------------------------------------------------------------
+# Script PowerShell : DeployWazuhAndSysmon.ps1
+# Description  : Déploie l'agent Wazuh, installe Sysmon, configure un fichier Sysmon minimal,
+#                et modifie la config Wazuh pour collecter les logs Sysmon et Application.
+# ----------------------------------------------------------------------------------------
 
-# ---------------------------
-# Partie Wazuh Agent
-# ---------------------------
-Write-Host "===== Déploiement de Wazuh Agent =====" -ForegroundColor Cyan
+[CmdletBinding()]
+param (
+    [string]$WazuhManagerIP = "10.10.0.24",
+    [string]$WazuhVersion   = "4.11.1-1",
+    [string]$SysmonUrl      = "https://download.sysinternals.com/files/Sysmon.zip"
+)
 
-# Paramètres pour Wazuh Agent
-$WazuhManagerIP     = "10.10.0.24"
-$WazuhVersion       = "4.11.1-1"
-# URL d'exemple pour Wazuh Agent version 4.11.1-1, vérifiez sur le site officiel si nécessaire
-$WazuhInstallerUrl  = "https://packages.wazuh.com/4.x/windows/wazuh-agent-$WazuhVersion.msi"
-$WazuhInstallerPath = "$env:TEMP\wazuh-agent-$WazuhVersion.msi"
-$WazuhInstallFolder = "C:\Program Files (x86)\Wazuh Agent"
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'  # Stop on any error
 
-# Vérifier si l'agent Wazuh est déjà installé
-if (Test-Path $WazuhInstallFolder) {
-    Write-Host "Wazuh Agent est déjà installé." -ForegroundColor Yellow
-} else {
-    Write-Host "Téléchargement du MSI de Wazuh Agent version $WazuhVersion..."
+Write-Host "=== Début du déploiement Wazuh + Sysmon ===" -ForegroundColor Cyan
+
+# ========================================================================================
+# 1. Déploiement de l'Agent Wazuh
+# ========================================================================================
+
+function Install-WazuhAgent {
+    param (
+        [string]$ManagerIP,
+        [string]$Version
+    )
+
+    $WazuhInstallerPath = Join-Path $env:TEMP "wazuh-agent-$Version.msi"
+    $WazuhInstallFolder = "C:\Program Files (x86)\Wazuh Agent"
+    $WazuhInstallerUrl  = "https://packages.wazuh.com/4.x/windows/wazuh-agent-$Version.msi"
+
+    # Vérifier si Wazuh est déjà installé
+    if (Test-Path $WazuhInstallFolder) {
+        Write-Host "Wazuh Agent est déjà installé. Aucune action requise." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Téléchargement du MSI Wazuh Agent version $Version..."
     try {
         Invoke-WebRequest -Uri $WazuhInstallerUrl -OutFile $WazuhInstallerPath -UseBasicParsing
         Write-Host "Téléchargement terminé : $WazuhInstallerPath"
     }
     catch {
-        Write-Error "Échec du téléchargement du MSI de Wazuh Agent: $_"
-        exit 1
+        Write-Error "Échec du téléchargement du MSI Wazuh : $_"
+        return
     }
 
-    Write-Host "Installation de Wazuh Agent..."
-    # Installation silencieuse avec configuration du serveur Wazuh
-    $msiArguments = "/i `"$WazuhInstallerPath`" /qn WAZUH_MANAGER=`"$WazuhManagerIP`""
+    Write-Host "Installation de Wazuh Agent en mode silencieux..."
+    $msiArguments = "/i `"$WazuhInstallerPath`" /qn WAZUH_MANAGER=`"$ManagerIP`""
     try {
         Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArguments -Wait -NoNewWindow
-        Write-Host "Installation de Wazuh Agent terminée avec succès." -ForegroundColor Green
+        Write-Host "Wazuh Agent installé avec succès." -ForegroundColor Green
     }
     catch {
-        Write-Error "Échec de l'installation de Wazuh Agent: $_"
-        exit 1
+        Write-Error "Échec de l'installation de Wazuh Agent : $_"
     }
 }
 
-# ---------------------------
-# Partie Sysmon
-# ---------------------------
-Write-Host "===== Installation et configuration de Sysmon =====" -ForegroundColor Cyan
+# ========================================================================================
+# 2. Installation et configuration de Sysmon
+# ========================================================================================
 
-# Variables pour Sysmon
-$sysmonUrl = "https://download.sysinternals.com/files/Sysmon.zip"
-$sysmonZip = "$env:TEMP\Sysmon.zip"
-$sysmonExtractPath = "$env:TEMP\Sysmon"
-$sysmonConfigPath = "$env:TEMP\sysmonconfig.xml"
-
-# Fonction pour ajouter Sysmon au PATH système
-function Add-SysmonToPath {
+function Install-Sysmon {
     param (
-        [string]$PathToSysmon
+        [string]$DownloadUrl
     )
 
-    Write-Host "Ajout de Sysmon au PATH du système..."
-    $currentPath = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::Machine)
-    if ($currentPath -notlike "*$PathToSysmon*") {
-        [System.Environment]::SetEnvironmentVariable("PATH", "$currentPath;$PathToSysmon", [System.EnvironmentVariableTarget]::Machine)
-        Write-Host "Sysmon a été ajouté au PATH du système. Redémarrez PowerShell pour appliquer les changements." -ForegroundColor Green
-    } else {
-        Write-Host "Sysmon est déjà présent dans le PATH du système." -ForegroundColor Yellow
+    $SysmonZip         = Join-Path $env:TEMP "Sysmon.zip"
+    $SysmonExtractPath = Join-Path $env:TEMP "Sysmon"
+    $SysmonConfigPath  = Join-Path $env:TEMP "sysmonconfig.xml"
+    $SysmonExe         = Join-Path $SysmonExtractPath "Sysmon64.exe"
+
+    # Vérifier si Sysmon est déjà présent (via Sysmon64.exe ou le service)
+    $serviceExists = Get-Service -Name "Sysmon" -ErrorAction SilentlyContinue
+    if ($serviceExists) {
+        Write-Host "Sysmon est déjà installé. Aucune action requise." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Téléchargement de Sysmon..."
+    try {
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $SysmonZip -UseBasicParsing
+        Write-Host "Téléchargement de Sysmon terminé."
+    }
+    catch {
+        Write-Error "Échec du téléchargement de Sysmon : $_"
+        return
+    }
+
+    Write-Host "Extraction de Sysmon..."
+    try {
+        if (Test-Path $SysmonExtractPath) {
+            Remove-Item -Path $SysmonExtractPath -Recurse -Force
+        }
+        Expand-Archive -Path $SysmonZip -DestinationPath $SysmonExtractPath -Force
+        Write-Host "Extraction terminée."
+    }
+    catch {
+        Write-Error "Échec de l'extraction de Sysmon : $_"
+        return
+    }
+
+    Write-Host "Création d'un fichier de configuration Sysmon minimal (schéma 4.50)..."
+    @"
+<Sysmon schemaversion="4.50">
+  <EventFiltering>
+    <ProcessCreate onmatch="include" />
+  </EventFiltering>
+</Sysmon>
+"@ | Out-File -FilePath $SysmonConfigPath -Encoding UTF8
+
+    Write-Host "Installation de Sysmon..."
+    try {
+        # Installation silencieuse + acceptation de la licence
+        Start-Process -FilePath $SysmonExe -ArgumentList "-accepteula -i `"$SysmonConfigPath`"" -Wait -NoNewWindow
+        Write-Host "Sysmon installé avec succès." -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Échec de l'installation de Sysmon : $_"
+        return
+    }
+
+    Write-Host "Réapplication de la configuration Sysmon..."
+    try {
+        Start-Process -FilePath $SysmonExe -ArgumentList "-c `"$SysmonConfigPath`"" -Wait -NoNewWindow
+        Write-Host "Configuration Sysmon réappliquée."
+    }
+    catch {
+        Write-Warning "Impossible de réappliquer la configuration Sysmon : $_"
+    }
+
+    Write-Host "Ajout de Sysmon au PATH..."
+    try {
+        $currentPath = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::Machine)
+        if ($currentPath -notlike "*$SysmonExtractPath*") {
+            [System.Environment]::SetEnvironmentVariable("PATH", "$currentPath;$SysmonExtractPath", [System.EnvironmentVariableTarget]::Machine)
+            Write-Host "Sysmon ajouté au PATH du système. (Redémarrez la session PowerShell si nécessaire.)" -ForegroundColor Green
+        }
+        else {
+            Write-Host "Sysmon est déjà dans le PATH du système." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Warning "Échec de l'ajout de Sysmon au PATH : $_"
+    }
+
+    Write-Host "Nettoyage des fichiers temporaires..."
+    try {
+        Remove-Item -Path $SysmonZip -Force
+        Remove-Item -Path $SysmonConfigPath -Force
+        Write-Host "Nettoyage terminé."
+    }
+    catch {
+        Write-Warning "Impossible de supprimer certains fichiers temporaires : $_"
     }
 }
 
-# Téléchargement de Sysmon
-Write-Host "Téléchargement de Sysmon..."
-try {
-    Invoke-WebRequest -Uri $sysmonUrl -OutFile $sysmonZip -UseBasicParsing
-    Write-Host "Téléchargement de Sysmon terminé."
-}
-catch {
-    Write-Error "Échec du téléchargement de Sysmon: $_"
-    exit 1
-}
+# ========================================================================================
+# 3. Configuration de l'agent Wazuh pour collecter Sysmon + Journaux Windows
+# ========================================================================================
 
-# Extraction de Sysmon
-Write-Host "Extraction de Sysmon..."
-try {
-    Expand-Archive -Path $sysmonZip -DestinationPath $sysmonExtractPath -Force
-    Write-Host "Extraction de Sysmon terminée."
-}
-catch {
-    Write-Error "Échec de l'extraction de Sysmon: $_"
-    exit 1
-}
+function Configure-WazuhAgent {
+    $ossecConfPath = "C:\Program Files (x86)\Wazuh Agent\ossec.conf"
 
-# Création du fichier de configuration Sysmon
-Write-Host "Création du fichier de configuration Sysmon..."
-@"
-<Sysmon schemaversion="4.82">
-  <EventFiltering>
-    <!-- Capture tous les événements -->
-    <NetworkConnect onmatch="include" />
-    <ProcessCreate onmatch="include" />
-    <FileCreate onmatch="include" />
-    <FileCreateTime onmatch="include" />
-    <FileDelete onmatch="include" />
-    <FileWrite onmatch="include" />
-    <ImageLoad onmatch="include" />
-    <RegistryEvent onmatch="include" />
-  </EventFiltering>
-</Sysmon>
-"@ | Out-File -FilePath $sysmonConfigPath -Encoding UTF8
+    if (-Not (Test-Path $ossecConfPath)) {
+        Write-Warning "Le fichier ossec.conf n'existe pas. Assurez-vous que Wazuh Agent est installé."
+        return
+    }
 
-# Installation de Sysmon
-Write-Host "Installation de Sysmon..."
-$sysmonExe = Join-Path $sysmonExtractPath "Sysmon64.exe"
-try {
-    Start-Process -FilePath $sysmonExe -ArgumentList "-accepteula -i $sysmonConfigPath" -Wait -NoNewWindow
-    Write-Host "Sysmon installé avec succès."
-}
-catch {
-    Write-Error "Échec de l'installation de Sysmon: $_"
-    exit 1
-}
-
-# Réapplication du fichier de configuration Sysmon
-Write-Host "Réapplication du fichier de configuration Sysmon..."
-try {
-    Start-Process -FilePath $sysmonExe -ArgumentList "-c $sysmonConfigPath" -Wait -NoNewWindow
-    Write-Host "Réapplication du fichier de configuration terminée."
-}
-catch {
-    Write-Error "Échec de la réapplication du fichier de configuration Sysmon: $_"
-    exit 1
-}
-
-# Ajout de Sysmon au PATH
-Add-SysmonToPath -PathToSysmon $sysmonExtractPath
-
-# Nettoyage des fichiers temporaires pour Sysmon
-Write-Host "Nettoyage des fichiers temporaires Sysmon..."
-try {
-    Remove-Item -Path $sysmonZip, $sysmonConfigPath -Recurse -Force
-    Write-Host "Nettoyage terminé."
-}
-catch {
-    Write-Warning "Échec du nettoyage complet des fichiers temporaires : $_"
-}
-
-# ---------------------------
-# Configuration de l'agent pour transmettre les logs
-# ---------------------------
-Write-Host "===== Configuration de l'agent Wazuh pour transmettre les logs =====" -ForegroundColor Cyan
-
-# Chemin du fichier de configuration de l'agent Wazuh sur Windows
-$ossecConfPath = "C:\Program Files (x86)\Wazuh Agent\ossec.conf"
-
-if (-Not (Test-Path $ossecConfPath)) {
-    Write-Warning "Le fichier de configuration ossec.conf n'a pas été trouvé. Assurez-vous que l'agent Wazuh est correctement installé."
-} else {
     try {
         [xml]$ossecConfig = Get-Content $ossecConfPath
+    }
+    catch {
+        Write-Error "Impossible de lire le fichier ossec.conf : $_"
+        return
+    }
 
-        # Vérifier et ajouter la configuration pour Sysmon (Event Channel: Microsoft-Windows-Sysmon/Operational)
-        $localfiles = $ossecConfig.ossec_config.localfile
-        $sysmonConfigExists = $false
+    # Récupérer la liste des <localfile> existants
+    $localfiles = $ossecConfig.ossec_config.localfile
+    if (-not $localfiles) {
+        # S'il n'y a pas encore de section <localfile>, on la crée
+        $localfiles = @()
+    }
 
-        if ($localfiles) {
-            foreach ($lf in $localfiles) {
-                if ($lf.location -and $lf.location -match "Microsoft-Windows-Sysmon/Operational") {
-                    $sysmonConfigExists = $true
+    # Fonction utilitaire pour ajouter un canal EventChannel s'il n'existe pas
+    function Add-EventChannel {
+        param(
+            [xml]$xmlConfig,
+            [string]$channelName
+        )
+
+        $exists = $false
+        if ($xmlConfig.ossec_config.localfile) {
+            foreach ($lf in $xmlConfig.ossec_config.localfile) {
+                if ($lf.location -and $lf.location -eq $channelName) {
+                    $exists = $true
                     break
                 }
             }
         }
 
-        if (-not $sysmonConfigExists) {
-            Write-Host "Ajout de la configuration pour le canal Sysmon dans ossec.conf..."
-            $newLocalFile = $ossecConfig.CreateElement("localfile")
+        if (-not $exists) {
+            Write-Host "Ajout du canal '$channelName' dans la configuration..."
+            $newLocalFile = $xmlConfig.CreateElement("localfile")
 
-            $logFormat = $ossecConfig.CreateElement("log_format")
+            $logFormat = $xmlConfig.CreateElement("log_format")
             $logFormat.InnerText = "eventchannel"
             $newLocalFile.AppendChild($logFormat) | Out-Null
 
-            $location = $ossecConfig.CreateElement("location")
-            $location.InnerText = "Microsoft-Windows-Sysmon/Operational"
+            $location = $xmlConfig.CreateElement("location")
+            $location.InnerText = $channelName
             $newLocalFile.AppendChild($location) | Out-Null
 
-            $ossecConfig.ossec_config.AppendChild($newLocalFile) | Out-Null
-        } else {
-            Write-Host "La configuration pour Sysmon existe déjà dans ossec.conf."
+            $xmlConfig.ossec_config.AppendChild($newLocalFile) | Out-Null
         }
-
-        # (Optionnel) Vous pouvez ajouter d'autres canaux d'événements (Application, System, Security, etc.)
-        # Exemple pour le canal Application :
-        $appConfigExists = $false
-        foreach ($lf in $localfiles) {
-            if ($lf.location -and $lf.location -match "Application") {
-                $appConfigExists = $true
-                break
-            }
+        else {
+            Write-Host "Le canal '$channelName' est déjà présent dans ossec.conf." -ForegroundColor Yellow
         }
-        if (-not $appConfigExists) {
-            Write-Host "Ajout de la configuration pour le canal Application..."
-            $newLocalFileApp = $ossecConfig.CreateElement("localfile")
+    }
 
-            $logFormatApp = $ossecConfig.CreateElement("log_format")
-            $logFormatApp.InnerText = "eventchannel"
-            $newLocalFileApp.AppendChild($logFormatApp) | Out-Null
+    # Ajouter le canal Sysmon
+    Add-EventChannel -xmlConfig $ossecConfig -channelName "Microsoft-Windows-Sysmon/Operational"
+    # Ajouter le canal Application (en exemple)
+    Add-EventChannel -xmlConfig $ossecConfig -channelName "Application"
+    # Ajouter d'autres canaux si besoin (System, Security, etc.)
+    # Add-EventChannel -xmlConfig $ossecConfig -channelName "System"
+    # Add-EventChannel -xmlConfig $ossecConfig -channelName "Security"
 
-            $locationApp = $ossecConfig.CreateElement("location")
-            $locationApp.InnerText = "Application"
-            $newLocalFileApp.AppendChild($locationApp) | Out-Null
-
-            $ossecConfig.ossec_config.AppendChild($newLocalFileApp) | Out-Null
-        }
-
-        # Sauvegarder les modifications
+    try {
         $ossecConfig.Save($ossecConfPath)
-        Write-Host "Le fichier ossec.conf a été mis à jour avec succès."
+        Write-Host "ossec.conf mis à jour avec succès pour collecter Sysmon et Application." -ForegroundColor Green
     }
     catch {
-        Write-Error "Échec de la mise à jour de ossec.conf : $_"
+        Write-Error "Impossible de sauvegarder ossec.conf : $_"
     }
 }
 
-Write-Host "Déploiement complet de Wazuh Agent, Sysmon et configuration des logs terminé avec succès !" -ForegroundColor Green
+# ========================================================================================
+# 4. Lancement des opérations
+# ========================================================================================
+
+try {
+    Install-WazuhAgent -ManagerIP $WazuhManagerIP -Version $WazuhVersion
+    Install-Sysmon -DownloadUrl $SysmonUrl
+    Configure-WazuhAgent
+    Write-Host "=== Déploiement complet terminé avec succès ! ===" -ForegroundColor Green
+}
+catch {
+    Write-Error "Une erreur imprévue est survenue : $_"
+}
+
+# ----------------------------------------------------------------------------------------
+# Fin du script
+# ----------------------------------------------------------------------------------------
