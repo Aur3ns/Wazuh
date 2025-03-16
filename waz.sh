@@ -65,7 +65,7 @@ echo "✅ Wazuh Dashboard installé avec succès."
 
 # Étape 8: Extraction des identifiants d'accès
 echo "🔐 Récupération des identifiants d'accès..."
-ADMIN_PASSWORD=$(tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt | grep -P "'admin'" -A 1 | tail -n1 | tr -d ' ')
+ADMIN_PASSWORD=$(tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt | grep -P "'admin'" -A 1 | tail -n1 | awk -F"'" '{print $2}')
 
 echo "✅ Installation complète de Wazuh terminée avec succès !"
 echo "🌐 Accédez à l’interface web ici : https://$IP_ADDRESS:$DASHBOARD_PORT"
