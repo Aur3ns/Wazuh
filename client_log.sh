@@ -104,7 +104,7 @@ input(type="imfile"
 
 # Journaux de cron
 input(type="imfile"
-      File="/var/log/cron"
+      File="/var/log/cron.log"
       Tag="cron:"
       Severity="info"
       Facility="local7")
