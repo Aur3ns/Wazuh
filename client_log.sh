@@ -88,13 +88,6 @@ input(type="imfile"
 
 ########### Surveillance des logs système et de sécurité ###########
 
-# Logs système généraux (syslog)
-input(type="imfile"
-      File="/var/log/syslog"
-      Tag="syslog:"
-      Severity="info"
-      Facility="daemon")
-
 # Logs d'authentification (sécurité)
 input(type="imfile"
       File="/var/log/auth.log"
