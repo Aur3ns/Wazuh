@@ -74,7 +74,7 @@ input(type="imfile"
 
 # Lynis
 input(type="imfile"
-      File="/var/log/lynis/lynis.log"
+      File="/var/log/lynis.log"
       Tag="lynis:"
       Severity="info"
       Facility="local7")
