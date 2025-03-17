@@ -60,16 +60,9 @@ input(type="imfile"
 
 # Osquery - erreurs
 input(type="imfile"
-      File="/var/log/osquery/osqueryd.errors.log"
+      File="/var/log/osquery/osqueryd.ERROR"
       Tag="osquery-errors:"
       Severity="error"
-      Facility="local7")
-
-# Chrony
-input(type="imfile"
-      File="/var/log/chrony/chrony.log"
-      Tag="chrony:"
-      Severity="info"
       Facility="local7")
 
 # Auditd
