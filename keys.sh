@@ -45,7 +45,7 @@ for agent in "${agents[@]}"; do
 done
 
 # Définition des permissions (propriétaire root et groupe ossec)
-chown root:ossec "$CLIENT_KEYS_FILE"
+chown root:wazuh "$CLIENT_KEYS_FILE"
 chmod 640 "$CLIENT_KEYS_FILE"
 
 echo "Génération des clés terminée. Le fichier client.keys se trouve ici : $CLIENT_KEYS_FILE"
