@@ -80,10 +80,42 @@ fi
 mkdir -p "$ALERT_SCRIPT_DIR"
 cat << EOF > "$ALERT_SCRIPT"
 #!/bin/bash
-# Script pour envoyer une alerte Wazuh vers Discord via webhook
-WEBHOOK_URL="$WEBHOOK_URL"
-ALERT_MESSAGE="\$1"
-curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"Alerte Wazuh : \$ALERT_MESSAGE\"}" "\$WEBHOOK_URL"
+#
+# Script : discord_alert.sh
+# Objectif : Envoyer une alerte Wazuh vers Discord via webhook
+#
+
+# 1) Définir l’URL de ton webhook Discord
+#    Remplace l'URL ci-dessous par la tienne.
+WEBHOOK_URL="https://discord.com/api/webhooks/TON_WEBHOOK_ID/TON_TOKEN"
+
+# 2) Debug (optionnel) : enregistrer les arguments reçus par Wazuh
+echo "[$(date)] ARGS: $@" >> /tmp/discord_alert_debug.log
+
+# 3) Récupérer les arguments passés par Wazuh Active Response
+ACTION="$1"       # add/delete
+IP="$2"           # IP concernée
+USER="$3"         # Nom d’utilisateur (si présent)
+RULE_ID="$4"      # ID de la règle (ex: 5716, 100001, etc.)
+LOCATION="$5"     # local/global
+FULL_LOG="$6"     # Le log complet qui a déclenché l’alerte (souvent)
+DECODER="$7"      # Nom du décodeur (ex: sshd, syslog, etc.)
+
+# 4) Construire un message plus complet pour Discord
+MESSAGE="**Alerte Wazuh**\n"
+MESSAGE+="Action : \`${ACTION}\`\n"
+MESSAGE+="IP : \`${IP}\`\n"
+MESSAGE+="User : \`${USER}\`\n"
+MESSAGE+="Rule ID : \`${RULE_ID}\`\n"
+MESSAGE+="Location : \`${LOCATION}\`\n"
+MESSAGE+="Decoder : \`${DECODER}\`\n"
+MESSAGE+="Log : \`${FULL_LOG}\`"
+
+# 5) Envoyer la requête à Discord
+curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"${MESSAGE}\"}" \
+     "${WEBHOOK_URL}"
 EOF
 chmod +x "$ALERT_SCRIPT"
 echo "✅ Script discord_alert.sh créé et rendu exécutable."
