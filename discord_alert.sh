@@ -6,7 +6,7 @@
 
 # 1) Définir l’URL de ton webhook Discord
 #    Remplace l'URL ci-dessous par la tienne.
-WEBHOOK_URL="https://discord.com/api/webhooks/https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
+WEBHOOK_URL="https://discord.com/api/webhooks/1350498539435851892/AUPDvMkhBGv34V-x6RSqDQAg4pVC5nduhQlnkqOdGmjXGa50fwE-V8ALsYNh2n_P6ejK"
 
 # 2) Debug (optionnel) : enregistrer les arguments reçus par Wazuh
 echo "[$(date)] ARGS: $@" >> /tmp/discord_alert_debug.log
