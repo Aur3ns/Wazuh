@@ -1,7 +1,7 @@
 <!-- Règles de sécurité pour Windows (premier groupe) -->
 <group name="security_event, windows,">
   <!-- Cette règle détecte les attaques DCSync à l'aide d'événements de sécurité Windows sur le contrôleur de domaine -->
-  <rule id="110001" level="12">
+  <rule id="110001" level="16">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4662$</field>
     <field name="win.eventdata.properties" type="pcre2">
@@ -12,7 +12,7 @@
   </rule>
 
   <!-- Cette règle ignore les accès au service annuaire provenant de comptes machines contenant $ -->
-  <rule id="110009" level="0">
+  <rule id="110009" level="16">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4662$</field>
     <field name="win.eventdata.properties" type="pcre2">
@@ -24,7 +24,7 @@
   </rule>
 
   <!-- Cette règle détecte les attaques Keberoasting -->
-  <rule id="110002" level="12">
+  <rule id="110002" level="16">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4769$</field>
     <field name="win.eventdata.TicketOptions" type="pcre2">0x40810000</field>
@@ -34,7 +34,7 @@
   </rule>
 
   <!-- Cette règle détecte les attaques Golden Ticket -->
-  <rule id="110003" level="12">
+  <rule id="110003" level="16">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4624$</field>
     <field name="win.eventdata.LogonGuid" type="pcre2">
@@ -49,7 +49,7 @@
 <!-- Règles de sécurité pour Windows (second groupe) -->
 <group name="security_event, windows,">
   <!-- Cette règle détecte l'exécution à distance de PsExec pour un mouvement latéral -->
-  <rule id="110004" level="12">
+  <rule id="110004" level="16">
     <if_sid>61600</if_sid>
     <field name="win.system.eventID" type="pcre2">17|18</field>
     <field name="win.eventdata.PipeName" type="pcre2">\\PSEXESVC</field>
@@ -58,14 +58,14 @@
   </rule>
 
   <!-- Cette règle détecte l'extraction du fichier NTDS.dit via un événement Sysmon -->
-  <rule id="110006" level="12">
+  <rule id="110006" level="16">
     <if_group>sysmon_event1</if_group>
     <field name="win.eventdata.commandLine" type="pcre2">NTDSUTIL</field>
     <description>Possible NTDS.dit file extraction using ntdsutil.exe</description>
   </rule>
 
   <!-- Cette règle détecte les attaques Pass-the-ash (PtH) sur un endpoint compromis -->
-  <rule id="110007" level="12">
+  <rule id="110007" level="16">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4624$</field>
     <field name="win.eventdata.LogonProcessName" type="pcre2">seclogo</field>
@@ -79,7 +79,7 @@
   </rule>
 
   <!-- Cette règle détecte le dumping d'identifiants avec mimikatz -->
-  <rule id="110008" level="12">
+  <rule id="110008" level="16">
     <if_sid>61612</if_sid>
     <field name="win.eventdata.TargetImage" type="pcre2">
       (?i)\\system32\\lsass.exe
@@ -92,7 +92,7 @@
 <!-- Règles locales pour Syslog/SSHD -->
 <group name="local,syslog,sshd,">
   <!-- Exemple : Détection d'une authentification SSH échouée provenant de l'IP 1.1.1.1 -->
-  <rule id="100001" level="5">
+  <rule id="100001" level="16">
     <if_sid>5716</if_sid>
     <srcip>1.1.1.1</srcip>
     <description>sshd: authentication failed from IP 1.1.1.1.</description>
@@ -101,25 +101,25 @@
 </group>
 
 <group name="windows, sysmon, sysmon_process-anomalies,">
-   <rule id="100000" level="12">
+   <rule id="100000" level="16">
      <if_group>sysmon_event1</if_group>
      <field name="win.eventdata.image">mimikatz.exe</field>
      <description>Sysmon - Suspicious Process - mimikatz.exe</description>
    </rule>
 
-   <rule id="100001" level="12">
+   <rule id="100001" level="16">
      <if_group>sysmon_event8</if_group>
      <field name="win.eventdata.sourceImage">mimikatz.exe</field>
      <description>Sysmon - Suspicious Process mimikatz.exe created a remote thread</description>
    </rule>
 
-   <rule id="100002" level="12">
+   <rule id="100002" level="16">
      <if_group>sysmon_event_10</if_group>
      <field name="win.eventdata.sourceImage">mimikatz.exe</field>
      <description>Sysmon - Suspicious Process mimikatz.exe accessed $(win.eventdata.targetImage)</description>
    </rule>
   
-  <rule id="100003" level="15">
+  <rule id="100003" level="16">
     <if_sid>sysmon_event1</if_sid>
     <field name="win.eventdata.originalFileName" type="pcre2">(?i)mimikatz\.exe</field>
     <description>Mimikatz Usage Detected</description>
