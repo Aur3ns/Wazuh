@@ -1,5 +1,32 @@
 <rules>
-  <!-- Règles de sécurité pour Windows (premier groupe) -->
+  <!-- Groupe: Détection de mimikatz via anomalies Sysmon -->
+  <group name="windows, sysmon, sysmon_process-anomalies,">
+    <rule id="100000" level="12">
+      <if_group>sysmon_event1</if_group>
+      <field name="win.eventdata.image">mimikatz.exe</field>
+      <description>Sysmon - Suspicious Process - mimikatz.exe</description>
+    </rule>
+    <rule id="100001" level="12">
+      <if_group>sysmon_event8</if_group>
+      <field name="win.eventdata.sourceImage">mimikatz.exe</field>
+      <description>Sysmon - Suspicious Process mimikatz.exe created a remote thread</description>
+    </rule>
+    <rule id="100002" level="12">
+      <if_group>sysmon_event_10</if_group>
+      <field name="win.eventdata.sourceImage">mimikatz.exe</field>
+      <description>Sysmon - Suspicious Process mimikatz.exe accessed $(win.eventdata.targetImage)</description>
+    </rule>
+    <rule id="100003" level="15">
+      <if_sid>sysmon_event1</if_sid>
+      <field name="win.eventdata.originalFileName" type="pcre2">(?i)mimikatz\.exe</field>
+      <description>Mimikatz Usage Detected</description>
+      <mitre>
+        <id>T1003</id>
+      </mitre>
+    </rule>
+  </group>
+  
+  <!-- Groupe: Règles de sécurité Active Directory - premier groupe -->
   <group name="security_event, windows,">
     <rule id="110001" level="12">
       <if_sid>60103</if_sid>
@@ -34,7 +61,7 @@
     </rule>
   </group>
   
-  <!-- Règles de sécurité pour Windows (second groupe) -->
+  <!-- Groupe: Règles de sécurité Active Directory - second groupe -->
   <group name="security_event, windows,">
     <rule id="110004" level="12">
       <if_sid>61600</if_sid>
@@ -66,7 +93,7 @@
     </rule>
   </group>
   
-  <!-- Règles locales pour Syslog/SSHD -->
+  <!-- Groupe: Règles locales pour Syslog/SSHD -->
   <group name="local,syslog,sshd,">
     <rule id="100001" level="5">
       <if_sid>5716</if_sid>
@@ -75,9 +102,11 @@
       <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
     </rule>
   </group>
+  
+  <!--
+       Références :
+       https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-1-of-2/
+       https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-2/
+       https://eddieamaya.com/2024/10/11/hybrid-cloud-soc-automation-project-lab-1-mimikatz-detection-automating-email-and-alert-creation-in-wazuh-and-thehive-using-shuffle/
+  -->
 </rules>
-
-
-<!-- https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-1-of-2/
-     https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-2/
--->
