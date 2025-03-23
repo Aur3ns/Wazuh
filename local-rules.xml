@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <rules>
   <!-- Règles de sécurité pour Windows (premier groupe) -->
   <group name="security_event, windows,">
