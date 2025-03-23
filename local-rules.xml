@@ -4,14 +4,18 @@
     <rule id="110001" level="12">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4662$</field>
-      <field name="win.eventdata.properties" type="pcre2">{1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}</field>
+      <field name="win.eventdata.properties" type="pcre2">
+        {1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}
+      </field>
       <options>no_full_log</options>
       <description>Directory Service Access. Possible DCSync attack</description>
     </rule>
     <rule id="110009" level="0">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4662$</field>
-      <field name="win.eventdata.properties" type="pcre2">{1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}</field>
+      <field name="win.eventdata.properties" type="pcre2">
+        {1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}
+      </field>
       <field name="win.eventdata.SubjectUserName" type="pcre2">\$$</field>
       <options>no_full_log</options>
       <description>Ignore all Directory Service Access that is originated from a machine account containing $</description>
@@ -75,9 +79,12 @@
       <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
     </rule>
   </group>
+  
+  <!-- Détection avancée de l'usage de Mimikatz (incluant privilege::debug) -->
+  <rule id="110010" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.CommandLine" type="pcre2">(?i)(sekurlsa::logonpasswords|sekurlsa::pth|privilege::debug)</field>
+    <options>no_full_log</options>
+    <description>Advanced detection: Mimikatz usage (sekurlsa commands or privilege::debug) detected</description>
+  </rule>
 </rules>
-
-
-<!-- https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-1-of-2/
-     https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-2/
--->
