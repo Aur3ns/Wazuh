@@ -1,32 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rules>
-
   <!-- Règles de sécurité pour Windows (premier groupe) -->
   <group name="security_event, windows,">
-    <!-- Cette règle détecte les attaques DCSync à l'aide d'événements de sécurité Windows sur le contrôleur de domaine -->
     <rule id="110001" level="12">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4662$</field>
-      <field name="win.eventdata.properties" type="pcre2">
-        {1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}
-      </field>
+      <field name="win.eventdata.properties" type="pcre2">{1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}</field>
       <options>no_full_log</options>
       <description>Directory Service Access. Possible DCSync attack</description>
     </rule>
-  
-    <!-- Cette règle ignore les accès au service annuaire provenant de comptes machines contenant $ -->
     <rule id="110009" level="0">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4662$</field>
-      <field name="win.eventdata.properties" type="pcre2">
-        {1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}
-      </field>
+      <field name="win.eventdata.properties" type="pcre2">{1131f6aa-9c07-11d1-f79f-00c04fc2dcd2}|{19195a5b-6da0-11d0-afd3-00c04fd930c9}</field>
       <field name="win.eventdata.SubjectUserName" type="pcre2">\$$</field>
       <options>no_full_log</options>
       <description>Ignore all Directory Service Access that is originated from a machine account containing $</description>
     </rule>
-  
-    <!-- Cette règle détecte les attaques Keberoasting -->
     <rule id="110002" level="12">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4769$</field>
@@ -35,14 +25,10 @@
       <options>no_full_log</options>
       <description>Possible Keberoasting attack</description>
     </rule>
-  
-    <!-- Cette règle détecte les attaques Golden Ticket -->
     <rule id="110003" level="12">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4624$</field>
-      <field name="win.eventdata.LogonGuid" type="pcre2">
-        {00000000-0000-0000-0000-000000000000}
-      </field>
+      <field name="win.eventdata.LogonGuid" type="pcre2">{00000000-0000-0000-0000-000000000000}</field>
       <field name="win.eventdata.logonType" type="pcre2">3</field>
       <options>no_full_log</options>
       <description>Possible Golden Ticket attack</description>
@@ -51,7 +37,6 @@
   
   <!-- Règles de sécurité pour Windows (second groupe) -->
   <group name="security_event, windows,">
-    <!-- Cette règle détecte l'exécution à distance de PsExec pour un mouvement latéral -->
     <rule id="110004" level="12">
       <if_sid>61600</if_sid>
       <field name="win.system.eventID" type="pcre2">17|18</field>
@@ -59,34 +44,24 @@
       <options>no_full_log</options>
       <description>PsExec service launched for possible lateral movement within the domain</description>
     </rule>
-  
-    <!-- Cette règle détecte l'extraction du fichier NTDS.dit via un événement Sysmon -->
     <rule id="110006" level="12">
       <if_group>sysmon_event1</if_group>
       <field name="win.eventdata.commandLine" type="pcre2">NTDSUTIL</field>
       <description>Possible NTDS.dit file extraction using ntdsutil.exe</description>
     </rule>
-  
-    <!-- Cette règle détecte les attaques Pass-the-ash (PtH) sur un endpoint compromis -->
     <rule id="110007" level="12">
       <if_sid>60103</if_sid>
       <field name="win.system.eventID">^4624$</field>
       <field name="win.eventdata.LogonProcessName" type="pcre2">seclogo</field>
       <field name="win.eventdata.LogonType" type="pcre2">9</field>
       <field name="win.eventdata.AuthenticationPackageName" type="pcre2">Negotiate</field>
-      <field name="win.eventdata.LogonGuid" type="pcre2">
-        {00000000-0000-0000-0000-000000000000}
-      </field>
+      <field name="win.eventdata.LogonGuid" type="pcre2">{00000000-0000-0000-0000-000000000000}</field>
       <options>no_full_log</options>
       <description>Possible Pass the hash attack</description>
     </rule>
-  
-    <!-- Cette règle détecte le dumping d'identifiants avec mimikatz -->
     <rule id="110008" level="12">
       <if_sid>61612</if_sid>
-      <field name="win.eventdata.TargetImage" type="pcre2">
-        (?i)\\system32\\lsass.exe
-      </field>
+      <field name="win.eventdata.TargetImage" type="pcre2">(?i)\\system32\\lsass.exe</field>
       <field name="win.eventdata.GrantedAccess" type="pcre2">(?i)0x1010</field>
       <description>Possible credential dumping using mimikatz</description>
     </rule>
@@ -94,7 +69,6 @@
   
   <!-- Règles locales pour Syslog/SSHD -->
   <group name="local,syslog,sshd,">
-    <!-- Exemple : Détection d'une authentification SSH échouée provenant de l'IP 1.1.1.1 -->
     <rule id="100001" level="5">
       <if_sid>5716</if_sid>
       <srcip>1.1.1.1</srcip>
@@ -102,5 +76,4 @@
       <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
     </rule>
   </group>
-  
 </rules>
