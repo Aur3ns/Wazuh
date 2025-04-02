@@ -11,8 +11,8 @@ echo "🚀 Début de l'installation complète de Wazuh sur $IP_ADDRESS..."
 
 # Étape 1: Téléchargement des fichiers nécessaires
 echo "📥 Téléchargement des fichiers d'installation..."
-curl -sO https://packages.wazuh.com/4.x/wazuh-install.sh
-curl -sO https://packages.wazuh.com/4.x/config.yml
+curl -sO https://packages.wazuh.com/4.11/wazuh-install.sh
+curl -sO https://packages.wazuh.com/4.11/config.yml
 
 # Étape 2: Configuration automatique de config.yml
 echo "🛠️ Configuration du fichier config.yml..."
