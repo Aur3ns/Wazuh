@@ -92,7 +92,7 @@
 <!-- Règles locales pour Syslog/SSHD -->
 <group name="local,syslog,sshd,">
   <!-- Exemple : Détection d'une authentification SSH échouée provenant de l'IP 1.1.1.1 -->
-  <rule id="100021" level="16">
+  <rule id="100001" level="16">
     <if_sid>5716</if_sid>
     <srcip>1.1.1.1</srcip>
     <description>sshd: authentication failed from IP 1.1.1.1.</description>
@@ -128,6 +128,15 @@
     </mitre>
   </rule>
 </group>
+
+<group name="clamav,malware,syslog">
+  <rule id="100101" level="8">
+    <match>Removed\.</match>
+    <description>ClamAV: Virus removed</description>
+  </rule>
+</group>
+
+
 
   <!--
        Références :
