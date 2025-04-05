@@ -1,6 +1,6 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------------------
-# Script : install_rsyslog_wazuh_agent.sh
+# Script : client_log.sh
 # Description : Installe et configure rsyslog pour surveiller :
 #               - Fail2ban, Osquery, Chrony, Auditd, Lynis, Samba,
 #               - les logs système (/var/log/syslog), d'authentification (/var/log/auth.log)
