@@ -104,10 +104,13 @@ input(type="imfile"
 
 # ClamAV Rapport de Détection
 input(type="imfile"
-      File="/var/log/clamav/analyse.log"
+      File="/var/log/clamav/clamd.log"
       Tag="clamav:"
       Severity="info"
       Facility="local6")
+
+local6.* /var/syslog
+local6.* /var/log/clamav/clamd-forwarding.log
 EOF
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Fichier de configuration rsyslog déployé." | tee -a "$LOG_FILE"
