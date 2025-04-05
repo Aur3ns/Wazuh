@@ -129,15 +129,6 @@
   </rule>
 </group>
 
-<group name="clamav,malware,syslog">
-  <rule id="100101" level="8">
-    <match>Removed\.</match>
-    <description>ClamAV: Virus removed</description>
-  </rule>
-</group>
-
-
-
   <!--
        Références :
        https://wazuh.com/blog/how-to-detect-active-directory-attacks-with-wazuh-part-1-of-2/
