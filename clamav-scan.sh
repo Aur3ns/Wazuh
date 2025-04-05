@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# A mettre dans /usr/local/bin
 # === Paramètres ===
 LOGFILE="/var/log/clamav/clamdscan.log"
 FORWARD_LOG="/var/log/clamav/clamd-forwarding.log"
