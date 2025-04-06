@@ -23,7 +23,7 @@ clamdscan -r --multiscan --fdpass / \
 # === Rechercher et supprimer les fichiers infectés ===
 grep "FOUND" "$LOGFILE" | cut -d: -f1 | while read -r file; do
   if [ -f "$file" ]; then
-    echo "$(date) - Fichier infecté supprimé : $file" >> "$LOGFILE"
+    echo "$(date) - Suppression du fichier infecté : $file" >> "$LOGFILE"
     rm -f "$file"
   fi
 done
