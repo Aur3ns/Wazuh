@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script : antivirus_scan.sh
+# Script : clamav-scan.sh
 # Emplacement recommandé : /usr/local/bin
 # Description : Analyse antivirus complète du système avec suppression des fichiers infectés et journalisation pour Wazuh
 
